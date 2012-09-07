@@ -60,13 +60,16 @@ function og_panels_defaults_form_alter(&$form,&$form_state,$form_id){
 
     if(in_array($form_id,$typeformids)){
         $form['add_default_tabs'] = array(
-            '#type' => 'checkbox',
+            //'#type' => 'checkbox',
+	    '#type' => 'value',
             '#title' => 'add default tabs',
-            '#default_value' => '0',
+           // '#default_value' => '0',
+	    '#value' => '1',
 	    '#description' => 'check this box to recreate the default tabs. It will not remove your existing tabs. This option is disabled if the source group for default tabs has not been set',
 	    '#weight' => '-3',
-            '#disabled' => !is_numeric(variable_get('og_panels_defaults_nid')),
+            '#disabled' => !is_numeric(variable_get('og_panels_defaults_nid', FALSE)),
         );
+	$sync = $_GET['sync'];
         $form['#submit'][] = 'og_panels_defaults_add_default_tabs_submit';
     }
 }
@@ -79,7 +82,7 @@ function og_panels_defaults_form_alter(&$form,&$form_state,$form_id){
 
 function og_panels_defaults_nodeapi($node,$op){
   if($op=="insert" || $op=="update"){
-    $defaultnode=node_load(variable_get('og_panels_defaults_nid'));
+    $defaultnode=node_load(variable_get('og_panels_defaults_nid', 1));
 //    drupal_set_message($defaultnode->type);
     if ($node->type==$defaultnode->type && $node->add_default_tabs==1){
       _og_panels_defaults_create_defaults($node->nid,$defaultnode->nid,false);
@@ -88,6 +91,10 @@ function og_panels_defaults_nodeapi($node,$op){
 }
 
 function _og_panels_defaults_create_defaults($gid,$defaultnid,$test=true){
+  if($gid == $defaultnid) {
+ drupal_goto('node');
+ }
+
   //set up the table names to use so moving from test tables to real tables is easy.
   //selects are always done from the real tables, as we're trying to get the real default config
 
@@ -100,10 +107,15 @@ function _og_panels_defaults_create_defaults($gid,$defaultnid,$test=true){
 
   //get existing og_panels entries, if any, for node
   //tab_num is part of the primary key, so we need to add max(tab_num) to the default tab nums
-  $sql="select max(tab_num) from og_panels where nid=%d";
+  $sql="select max(tab_num) from {og_panels} where nid=%d";
   $result=db_query($sql,$gid);
   $maxtab=db_result($result);
   
+  if($sync = TRUE) {
+  $sql = "DELETE FROM {og_panels} WHERE nid=%d";
+  $result = db_query($sql, $gid);
+  }   
+
   //get og_panels rows for default config
   $sql="select * from {og_panels} where nid=%d order by tab_num";
   $panels_rows=db_query($sql,$defaultnid);
@@ -124,7 +136,7 @@ function _og_panels_defaults_create_defaults($gid,$defaultnid,$test=true){
     $displayrow->cache=unserialize($cache);
     drupal_write_record($tables["panels_display"],$displayrow);
      
-    print "displayID:$row->did\n";
+   // print "displayID:$row->did\n";
     $newdid=db_last_insert_id($tables["panels_display"],'did');
     $row->did=$newdid;
     $row->nid=$gid;
@@ -133,14 +145,18 @@ function _og_panels_defaults_create_defaults($gid,$defaultnid,$test=true){
     if($maxtab>0){
 	$row->default_page=0;
     }
+    if($row->page_title == 'Home') {
+	$row->default_page=1;
+	}
     drupal_write_record($tables["og_panels"],$row);
+    _og_panels_tab_renumber($gid);
 
    //insert the panes in the same loop so the content goes to the right place
     $sql="select * from {panels_pane} where did = %d";
     $panes_defaults=db_query($sql,$defaultdid);
     $i=0;
     while($panerow=db_fetch_object($panes_defaults)){
-      print "PID=" . $panerow->pid;
+     // print "PID=" . $panerow->pid;	
       $panerow->pid=db_last_insert_id('{panels_pane}','pid')+$i++;
       $panerow->did=$newdid;
       $access=$panerow->access;
