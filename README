@@ -1,0 +1,7 @@
+This module enables you to configure a default node for OG Panels.
+
+The default nid can be set at admin/og/og_panels/defaults
+
+Panel pages will be cloned per node on creation or save.
+
+(If you're facing problems, pass sync='TRUE' in the node URL, so that the template node panels are recloned afresh)
