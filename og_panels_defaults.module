@@ -1,0 +1,163 @@
+<?php
+function og_panels_defaults_menu(){
+  $items = array();
+  
+  $items['admin/og/og_panels/defaults'] = array(
+   'title' => t('og panels defaults settings'),
+   'description' => t('set the default node to base your new group layouts on'),
+   'page callback' => 'drupal_get_form',
+   'page arguments' => array('og_panels_defaults_admin'),
+   'access arguments' => array('access administration pages'),
+   'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['listnodes']=array(
+   'page callback' => 'og_panels_defaults_autocomplete_ognodetitles',
+   'access arguments' => array('access administration pages'),
+   'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+function og_panels_defaults_autocomplete_ognodetitles($string){
+ $matches = array();
+ if (is_numeric($string)){
+   $matches[$string]=$string;
+ }else{ 
+   $types = og_get_types('group');
+   $sql="select title,nid,type from node where type in (" . db_placeholders($types,'varchar') .')';
+   $res=db_query($sql,$types);
+   while ($row = db_fetch_array($res)) {
+     $titlesub=substr($row['title'],0,strlen($string));
+     if ($titlesub==$string){
+       $matches[$row['nid']] = $row['title'];
+     }
+   }
+ }
+ drupal_json($matches); 
+}
+
+function og_panels_defaults_admin(){
+  $form= array();
+  $form['og_panels_defaults_nid'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Select Node'),
+    '#autocomplete_path' => 'listnodes',
+    '#size' => 50,
+    '#default_value' => variable_get('og_panels_defaults_nid'),
+    '#description' => t('Node ID of the organic group that has the desired default layout or autocomplete node title'),
+  );
+
+  return system_settings_form($form);
+
+}
+
+function og_panels_defaults_form_alter(&$form,&$form_state,$form_id){
+    $types=og_get_types('group');
+    foreach($types as $type){
+      $typeformids[$type]=$type . "_node_form";
+    }
+
+    if(in_array($form_id,$typeformids)){
+        $form['add_default_tabs'] = array(
+            '#type' => 'checkbox',
+            '#title' => 'add default tabs',
+            '#default_value' => '0',
+	    '#description' => 'check this box to recreate the default tabs. It will not remove your existing tabs. This option is disabled if the source group for default tabs has not been set',
+	    '#weight' => '-3',
+            '#disabled' => !is_numeric(variable_get('og_panels_defaults_nid')),
+        );
+        $form['#submit'][] = 'og_panels_defaults_add_default_tabs_submit';
+    }
+}
+//function og_panels_defaults_add_default_tabs_submit($form, &$form_state){
+//    if($form_state['values']['add_default_tabs'] == 1){
+//      _og_panels_defaults_create_defaults($form_state['values']['nid'],4520);
+//    }
+//}
+
+
+function og_panels_defaults_nodeapi($node,$op){
+  if($op=="insert" || $op=="update"){
+    $defaultnode=node_load(variable_get('og_panels_defaults_nid'));
+//    drupal_set_message($defaultnode->type);
+    if ($node->type==$defaultnode->type && $node->add_default_tabs==1){
+      _og_panels_defaults_create_defaults($node->nid,$defaultnode->nid,false);
+    }
+  }
+}
+
+function _og_panels_defaults_create_defaults($gid,$defaultnid,$test=true){
+  //set up the table names to use so moving from test tables to real tables is easy.
+  //selects are always done from the real tables, as we're trying to get the real default config
+
+  if($test){
+    $tables=array("og_panels"=>"og_panels_test","panels_display"=>"panels_display_test","panels_pane"=>"panels_pane_test");
+  }else{
+    $tables=array("og_panels"=>"og_panels","panels_display"=>"panels_display","panels_pane"=>"panels_pane");
+
+  }
+
+  //get existing og_panels entries, if any, for node
+  //tab_num is part of the primary key, so we need to add max(tab_num) to the default tab nums
+  $sql="select max(tab_num) from og_panels where nid=%d";
+  $result=db_query($sql,$gid);
+  $maxtab=db_result($result);
+  
+  //get og_panels rows for default config
+  $sql="select * from {og_panels} where nid=%d order by tab_num";
+  $panels_rows=db_query($sql,$defaultnid);
+  //create new og_panels rows from default rows
+  $i=0;
+  $defaultdids=array();
+  while($row=db_fetch_object($panels_rows)){
+    $defaultdid=$row->did;
+    //need to insert the display item to get the correct display id to insert into og_panels
+    $displaysql="select * from {panels_display} where did=%d";
+    $displayresult=db_query($displaysql,$row->did);
+    $displayrow=db_fetch_object($displayresult);
+    $ls=$displayrow->layout_settings;
+    $ps=$displayrow->panel_settings;
+    $cache=$displayrow->cache;
+    $displayrow->layout_settings=unserialize($ls);
+    $displayrow->panel_settings=unserialize($ps);
+    $displayrow->cache=unserialize($cache);
+    drupal_write_record($tables["panels_display"],$displayrow);
+     
+    print "displayID:$row->did\n";
+    $newdid=db_last_insert_id($tables["panels_display"],'did');
+    $row->did=$newdid;
+    $row->nid=$gid;
+    $row->tab_num+=$maxtab;
+    $row->weight=$row->tab_num-9;
+    if($maxtab>0){
+	$row->default_page=0;
+    }
+    drupal_write_record($tables["og_panels"],$row);
+
+   //insert the panes in the same loop so the content goes to the right place
+    $sql="select * from {panels_pane} where did = %d";
+    $panes_defaults=db_query($sql,$defaultdid);
+    $i=0;
+    while($panerow=db_fetch_object($panes_defaults)){
+      print "PID=" . $panerow->pid;
+      $panerow->pid=db_last_insert_id('{panels_pane}','pid')+$i++;
+      $panerow->did=$newdid;
+      $access=$panerow->access;
+      $config=$panerow->configuration;
+      $cache=$panerow->cache;
+      $style=$panerow->style;
+      $css=$panerow->css;
+      $extras=$panerow->extras;
+      $panerow->access=unserialize($access);
+      $panerow->configuration=unserialize($config);
+      $panerow->cache=unserialize($cache);
+      $panerow->style=unserialize($style);
+      $panerow->css=unserialize($css);
+      $panerow->extras=unserialize($css);
+      drupal_write_record($tables["panels_pane"],$panerow);
+  }
+
+  }
+
+}

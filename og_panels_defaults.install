@@ -1,0 +1,227 @@
+<?php
+
+function og_panels_defaults_schema() {
+  $schema = array();
+
+  $schema['panels_display_test'] = array(
+    'export' => array(
+      'object' => 'panels_display',
+      'bulk export' => FALSE,
+      'export callback' => 'panels_export_display',
+      'can disable' => FALSE,
+      'identifier' => 'display',
+    ),
+    'fields' => array(
+      'did' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'no export' => TRUE,
+      ),
+      'layout' => array(
+        'type' => 'varchar',
+        'length' => '32',
+        'default' => '',
+      ),
+      'layout_settings' => array(
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+        'object default' => array(),
+        'initial ' => array(),
+      ),
+      'panel_settings' => array(
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+        'object default' => array(),
+        'initial ' => array(),
+      ),
+      'cache' => array(
+        'type' => 'text',
+        'serialize' => TRUE,
+        'object default' => array(),
+        'initial ' => array(),
+      ),
+      'title' => array(
+        'type' => 'varchar',
+        'length' => '255',
+        'default' => '',
+      ),
+      'hide_title' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'default' => 0,
+        'no export' => TRUE,
+      ),
+    ),
+    'primary key' => array('did'),
+  );
+
+  $schema['panels_pane_test'] = array(
+    'export' => array(
+      'can disable' => FALSE,
+      'identifier' => 'pane',
+      'bulk export' => FALSE,
+    ),
+    'fields' => array(
+      'pid' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'did' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'no export' => TRUE,
+      ),
+      'panel' => array(
+        'type' => 'varchar',
+        'length' => '32',
+        'default' => '',
+      ),
+      'type' => array(
+        'type' => 'varchar',
+        'length' => '32',
+        'default' => '',
+      ),
+      'subtype' => array(
+        'type' => 'varchar',
+        'length' => '64',
+        'default' => '',
+      ),
+      'shown' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'default' => 1,
+      ),
+      'access' => array(
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+        'object default' => array(),
+        'initial ' => array(),
+      ),
+      'configuration' => array(
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+        'object default' => array(),
+        'initial ' => array(),
+      ),
+      'cache' => array(
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+        'object default' => array(),
+        'initial ' => array(),
+      ),
+      'style' => array(
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+        'object default' => array(),
+        'initial ' => array(),
+      ),
+      'css' => array(
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+        'object default' => array(),
+        'initial ' => array(),
+      ),
+      'extras' => array(
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+        'object default' => array(),
+        'initial ' => array(),
+      ),
+      'position' => array(
+        'type' => 'int',
+        'size' => 'small',
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('pid'),
+    'indexes' => array(
+      'did_idx' => array('did')
+    ),
+  );
+
+
+  $schema['og_panels_test'] = array(
+    'description' => 'Keeps track of panel dids per-group.',
+    'fields' => array(
+      'did' => array(
+        'description' => 'A panels display id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0),
+      'nid' => array(
+        'description' => 'The organic group node id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0),
+      'published' => array(
+        'description' => 'Boolean: is this panels page published?',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0),
+      'page_title' => array(
+        'description' => 'The tab/title for this panels page.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => ''),
+      'path' => array(
+        'description' => 'The url alias for this panel.',
+        'type' => 'varchar',
+        'length' => 100,
+        'not null' => TRUE,
+        'default' => ''),
+      'default_page' => array(
+        'description' => 'Boolean: is this panels page the default home for the group?',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0),
+      'show_blocks' => array(
+        'description' => 'Boolean: should this panels page hide the normal block regions?',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0),
+      'weight' => array(
+        'description' => 'Weighting for tab order',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0),
+      'tab_num' => array(
+        'description' => 'Tab number for this node_tab.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0),
+      ),
+    'indexes' => array(
+      'nid' => array('nid'),
+      'page_title' => array('page_title'),
+      'tab_num' => array('tab_num'),
+      'did' => array('did'),
+     ),
+    'primary key' => array('nid', 'tab_num'),
+  );
+  return $schema;
+}
+function og_panels_defaults_install() {
+  $result=drupal_install_schema('og_panels_defaults');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function og_panels_import_uninstall() {
+  drupal_uninstall_schema('og_panels_defaults');
+}
+
+
